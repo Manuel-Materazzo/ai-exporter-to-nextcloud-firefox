@@ -132,4 +132,64 @@ browser.runtime.onMessage.addListener((msg) => {
       return { ok: false, error: String(err) };
     });
   }
+
+  if (msg.type === "sync-filter-settings") {
+    return handleFilterSync().catch((err) => {
+      console.error("[AI Exporter] filter-sync error", err);
+      return { ok: false, error: String(err) };
+    });
+  }
 });
+
+// ---------------------------------------------------------------------------
+// Filter-settings sync -- runs on browser startup and on demand
+// ---------------------------------------------------------------------------
+
+async function handleFilterSync() {
+  const config = await getConfig();
+  if (!config.filterSync.enabled) return { ok: false, reason: "disabled" };
+
+  if (!config.nextcloud.baseUrl || !config.nextcloud.username || !config.nextcloud.appPassword) {
+    return { ok: false, reason: "not-configured" };
+  }
+
+  // Make sure the remote folder exists before trying to read/write the settings file.
+  await ensureFolder(config);
+
+  const result = await syncFilterSettings(config);
+
+  if (result.action === "pull") {
+    // Remote was newer: update local profiles / autoExport and record the remote timestamp.
+    const updated = {
+      ...config,
+      filterSync: { ...config.filterSync, lastPushed: result.updatedAt }
+    };
+    if (result.profiles && Array.isArray(result.profiles) && result.profiles.length) {
+      updated.profiles = result.profiles;
+    }
+    if (result.autoExport) {
+      updated.autoExport = { ...config.autoExport, ...result.autoExport };
+    }
+    await setConfig(updated);
+    console.info("[AI Exporter] filter-sync: pulled remote settings (remote was newer)");
+  } else {
+    // We pushed: record the new timestamp.
+    const updated = {
+      ...config,
+      filterSync: { ...config.filterSync, lastPushed: result.updatedAt }
+    };
+    await setConfig(updated);
+    console.info("[AI Exporter] filter-sync: pushed local settings to Nextcloud");
+  }
+
+  return { ok: true, action: result.action, updatedAt: result.updatedAt };
+}
+
+// Run filter-settings sync automatically whenever the background script starts.
+(async () => {
+  try {
+    await handleFilterSync();
+  } catch (e) {
+    console.warn("[AI Exporter] startup filter-sync failed:", e);
+  }
+})();

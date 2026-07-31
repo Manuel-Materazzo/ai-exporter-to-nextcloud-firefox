@@ -11,6 +11,11 @@ const DEFAULT_CONFIG = {
     enabled: true,
     delaySeconds: 10
   },
+  filterSync: {
+    enabled: false,     // when true, profiles are synced to/from Nextcloud
+    filename: ".filter-settings.json",  // file inside remoteFolder
+    lastPushed: 0       // ms timestamp of last successful push
+  },
   // Profiles let you tune extraction per-site. First matching hostnamePattern wins.
   // Keep a catch-all "default" profile (hostnamePattern ".*") last.
   profiles: [
@@ -49,6 +54,7 @@ async function getConfig() {
   return {
     nextcloud: { ...DEFAULT_CONFIG.nextcloud, ...(cfg.nextcloud || {}) },
     autoExport: { ...DEFAULT_CONFIG.autoExport, ...(cfg.autoExport || {}) },
+    filterSync: { ...DEFAULT_CONFIG.filterSync, ...(cfg.filterSync || {}) },
     profiles: (cfg.profiles && cfg.profiles.length) ? cfg.profiles : DEFAULT_CONFIG.profiles,
     urlMap: cfg.urlMap || {}
   };
@@ -68,4 +74,104 @@ function matchProfile(profiles, hostname) {
     }
   }
   return profiles[profiles.length - 1];
+}
+
+// ---------------------------------------------------------------------------
+// Filter-settings sync helpers (shared by background and options page)
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the WebDAV URL for the filter-settings JSON file.
+ */
+function filterSyncDavUrl(config) {
+  const base = config.nextcloud.baseUrl.replace(/\/+$/, "");
+  const user = encodeURIComponent(config.nextcloud.username);
+  const folder = config.nextcloud.remoteFolder.replace(/^\/+|\/+$/g, "");
+  const filename = config.filterSync.filename || DEFAULT_CONFIG.filterSync.filename;
+  const remotePath = folder ? `${folder}/${filename}` : filename;
+  const encodedPath = remotePath.split("/").map(encodeURIComponent).join("/");
+  return `${base}/remote.php/dav/files/${user}/${encodedPath}`;
+}
+
+function filterSyncAuthHeader(config) {
+  return "Basic " + btoa(`${config.nextcloud.username}:${config.nextcloud.appPassword}`);
+}
+
+/**
+ * Push the current profiles (and autoExport) to Nextcloud.
+ * Returns { ok, updatedAt } or throws.
+ */
+async function pushFilterSettings(config) {
+  const davUrl = filterSyncDavUrl(config);
+  const now = Date.now();
+  const payload = JSON.stringify({
+    updatedAt: now,
+    profiles: config.profiles,
+    autoExport: config.autoExport
+  }, null, 2);
+
+  const res = await fetch(davUrl, {
+    method: "PUT",
+    headers: {
+      Authorization: filterSyncAuthHeader(config),
+      "Content-Type": "application/json; charset=utf-8"
+    },
+    body: payload,
+    credentials: "omit"
+  });
+  if (!res.ok) throw new Error(`PUT failed: ${res.status} ${res.statusText}`);
+  return { ok: true, updatedAt: now };
+}
+
+/**
+ * Pull the remote filter settings.
+ * Returns null if the file does not exist, or the parsed object.
+ */
+async function pullFilterSettings(config) {
+  const davUrl = filterSyncDavUrl(config);
+  const res = await fetch(davUrl, {
+    method: "GET",
+    headers: { Authorization: filterSyncAuthHeader(config) },
+    credentials: "omit"
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`GET failed: ${res.status} ${res.statusText}`);
+  return await res.json();
+}
+
+/**
+ * Sync filter settings with Nextcloud using date/time to decide what to keep.
+ *
+ * Strategy:
+ *   - If the remote file doesn't exist → push current local settings.
+ *   - If remote.updatedAt > config.filterSync.lastPushed → remote is newer → pull.
+ *   - Otherwise → local is newer (or equal) → push.
+ *
+ * Returns { action: 'push'|'pull'|'none', updatedAt, profiles?, autoExport? }
+ */
+async function syncFilterSettings(config) {
+  const remote = await pullFilterSettings(config);
+
+  // Nothing on the server yet → push immediately.
+  if (!remote) {
+    const { updatedAt } = await pushFilterSettings(config);
+    return { action: "push", updatedAt };
+  }
+
+  const remoteTs = remote.updatedAt || 0;
+  const localTs  = config.filterSync.lastPushed || 0;
+
+  if (remoteTs > localTs) {
+    // Remote is newer → adopt remote settings.
+    return {
+      action: "pull",
+      updatedAt: remoteTs,
+      profiles: remote.profiles,
+      autoExport: remote.autoExport
+    };
+  }
+
+  // Local is newer (or same) → push.
+  const { updatedAt } = await pushFilterSettings(config);
+  return { action: "push", updatedAt };
 }

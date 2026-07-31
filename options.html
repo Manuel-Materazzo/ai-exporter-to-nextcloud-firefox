@@ -16,7 +16,7 @@
     .row > div { flex: 1; }
     textarea#profilesJson { width: 100%; height: 260px; font-family: ui-monospace, monospace; font-size: 12px; margin-top: 6px; }
     button { padding: 8px 14px; margin-top: 12px; margin-right: 8px; cursor: pointer; }
-    #saveStatus, #testStatus { font-size: 13px; margin-top: 8px; }
+    #saveStatus, #testStatus, #syncStatus { font-size: 13px; margin-top: 8px; }
     .ok { color: #147a2e; }
     .err { color: #a3231b; }
     label.inline { display: inline-flex; align-items: center; gap: 6px; font-weight: normal; }
@@ -50,6 +50,22 @@
   <label class="inline"><input type="checkbox" id="autoEnabled" /> Enable automatic export</label>
   <label>Delay after pressing Enter (seconds)</label>
   <input type="number" id="delaySeconds" min="1" max="120" style="width:100px" />
+
+  <h2>Filter settings sync</h2>
+  <label class="inline"><input type="checkbox" id="filterSyncEnabled" /> Sync filter settings (profiles &amp; auto-export) with Nextcloud</label>
+  <p><small>
+    When enabled, your extraction profiles and auto-export settings are stored as
+    <code>.filter-settings.json</code> inside your remote folder. On each browser
+    start the extension compares timestamps: the newer version wins.
+    You can also sync manually at any time with the button below.
+  </small></p>
+  <label>Remote settings filename <small>(inside the remote folder above)</small></label>
+  <input type="text" id="filterSyncFilename" placeholder=".filter-settings.json" style="width:260px" />
+  <div>
+    <button id="syncNow">Sync now</button>
+    <span id="filterSyncLastSynced" style="font-size:12px; color:#666; vertical-align:middle;"></span>
+  </div>
+  <div id="syncStatus"></div>
 
   <h2>Extraction profiles</h2>
   <p><small>
