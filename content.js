@@ -66,6 +66,20 @@ function isExcluded(el, excludeSelectors) {
   });
 }
 
+function isUserMessage(el, userMessageSelector) {
+  if (!userMessageSelector) return false;
+  try {
+    return !!el.closest(userMessageSelector);
+  } catch (e) {
+    return false;
+  }
+}
+
+function wrapAsQuote(text, delimiter = "---") {
+  const quotedText = text.split("\n").map((l) => `> ${l}`).join("\n");
+  return `${delimiter}\n${quotedText}\n${delimiter}`;
+}
+
 function extractMarkdown(profile) {
   const root =
     (profile.containerSelector && document.querySelector(profile.containerSelector)) ||
@@ -83,47 +97,64 @@ function extractMarkdown(profile) {
     const ancestorMatch = el.parentElement && el.parentElement.closest(BLOCK_SELECTOR);
     if (ancestorMatch && allSet.has(ancestorMatch)) continue;
 
+    const userMsg = isUserMessage(el, profile.userMessageSelector);
+
     switch (el.tagName) {
-      case "H1":
-        markdown += `# ${elementToInline(el).trim()}\n\n`;
+      case "H1": {
+        const t = `# ${elementToInline(el).trim()}`;
+        markdown += (userMsg ? wrapAsQuote(t) : t) + "\n\n";
         break;
-      case "H2":
-        markdown += `## ${elementToInline(el).trim()}\n\n`;
+      }
+      case "H2": {
+        const t = `## ${elementToInline(el).trim()}`;
+        markdown += (userMsg ? wrapAsQuote(t) : t) + "\n\n";
         break;
-      case "H3":
-        markdown += `### ${elementToInline(el).trim()}\n\n`;
+      }
+      case "H3": {
+        const t = `### ${elementToInline(el).trim()}`;
+        markdown += (userMsg ? wrapAsQuote(t) : t) + "\n\n";
         break;
-      case "H4":
-        markdown += `#### ${elementToInline(el).trim()}\n\n`;
+      }
+      case "H4": {
+        const t = `#### ${elementToInline(el).trim()}`;
+        markdown += (userMsg ? wrapAsQuote(t) : t) + "\n\n";
         break;
-      case "H5":
-        markdown += `##### ${elementToInline(el).trim()}\n\n`;
+      }
+      case "H5": {
+        const t = `##### ${elementToInline(el).trim()}`;
+        markdown += (userMsg ? wrapAsQuote(t) : t) + "\n\n";
         break;
-      case "H6":
-        markdown += `###### ${elementToInline(el).trim()}\n\n`;
+      }
+      case "H6": {
+        const t = `###### ${elementToInline(el).trim()}`;
+        markdown += (userMsg ? wrapAsQuote(t) : t) + "\n\n";
         break;
+      }
       case "P": {
         const t = elementToInline(el).trim();
-        if (t) markdown += `${t}\n\n`;
+        if (t) markdown += (userMsg ? wrapAsQuote(t) : t) + "\n\n";
         break;
       }
       case "LI": {
         const t = elementToInline(el).trim();
-        if (t) markdown += `* ${t}\n`;
+        if (t) markdown += (userMsg ? wrapAsQuote(`* ${t}`) : `* ${t}`) + "\n";
         break;
       }
       case "BLOCKQUOTE": {
         const t = elementToInline(el).trim();
-        if (t) markdown += t.split("\n").map((l) => `> ${l}`).join("\n") + "\n\n";
+        if (t) markdown += wrapAsQuote(t) + "\n\n";
         break;
       }
       case "PRE": {
         const t = el.innerText.trim();
-        if (t) markdown += `\`\`\`\n${t}\n\`\`\`\n\n`;
+        if (t) {
+          const block = `\`\`\`\n${t}\n\`\`\``;
+          markdown += (userMsg ? wrapAsQuote(block) : block) + "\n\n";
+        }
         break;
       }
       case "TABLE":
-        markdown += tableToMarkdown(el);
+        markdown += userMsg ? wrapAsQuote(tableToMarkdown(el).trim()) + "\n\n" : tableToMarkdown(el);
         break;
     }
   }

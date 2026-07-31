@@ -24,6 +24,7 @@ const DEFAULT_CONFIG = {
       hostnamePattern: ".*",
       containerSelector: "",              // CSS selector to scope extraction; empty = whole <body>
       excludeSelectors: ["nav", "header", "footer", "button", "form"],
+      userMessageSelector: "",            // CSS selector for user-message containers; matched content is wrapped in a blockquote
       startDelimiters: [],                // drop everything BEFORE the earliest match
       endDelimiters: [],                  // drop everything AFTER the earliest match (searched after start cut)
       maskRules: []                       // [{pattern, flags, replacement}] applied in order

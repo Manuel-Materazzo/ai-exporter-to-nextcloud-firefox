@@ -73,6 +73,8 @@
     <code>location.hostname</code> — first match wins, so keep a catch-all <code>".*"</code> profile last.
     <br/><b>containerSelector</b>: CSS selector to scope extraction (empty = whole page).
     <br/><b>excludeSelectors</b>: CSS selectors to skip (e.g. sidebars, nav).
+    <br/><b>userMessageSelector</b>: CSS selector for user-message containers — matched blocks are
+    wrapped in a <code>&gt; blockquote</code> (citation block) to distinguish them from AI replies.
     <br/><b>startDelimiters</b> / <b>endDelimiters</b>: literal strings — text before the earliest
     start match and after the earliest end match is discarded.
     <br/><b>maskRules</b>: <code>[{"pattern": "regex", "flags": "g", "replacement": "..."}]</code>, applied in order.
