@@ -66,18 +66,69 @@ function isExcluded(el, excludeSelectors) {
   });
 }
 
-function isUserMessage(el, userMessageSelector) {
-  if (!userMessageSelector) return false;
+function getUserMessageContainer(el, userMessageSelector) {
+  if (!userMessageSelector) return null;
   try {
-    return !!el.closest(userMessageSelector);
+    return el.closest(userMessageSelector);
   } catch (e) {
-    return false;
+    return null;
   }
 }
 
 function wrapAsQuote(text, delimiter = "---") {
   const quotedText = text.split("\n").map((l) => `> ${l}`).join("\n");
   return `${delimiter}\n${quotedText}\n${delimiter}`;
+}
+
+function getBlockMarkdown(el) {
+  switch (el.tagName) {
+    case "H1": {
+      const t = elementToInline(el).trim();
+      return t ? `# ${t}\n\n` : "";
+    }
+    case "H2": {
+      const t = elementToInline(el).trim();
+      return t ? `## ${t}\n\n` : "";
+    }
+    case "H3": {
+      const t = elementToInline(el).trim();
+      return t ? `### ${t}\n\n` : "";
+    }
+    case "H4": {
+      const t = elementToInline(el).trim();
+      return t ? `#### ${t}\n\n` : "";
+    }
+    case "H5": {
+      const t = elementToInline(el).trim();
+      return t ? `##### ${t}\n\n` : "";
+    }
+    case "H6": {
+      const t = elementToInline(el).trim();
+      return t ? `###### ${t}\n\n` : "";
+    }
+    case "P": {
+      const t = elementToInline(el).trim();
+      return t ? `${t}\n\n` : "";
+    }
+    case "LI": {
+      const t = elementToInline(el).trim();
+      return t ? `* ${t}\n` : "";
+    }
+    case "BLOCKQUOTE": {
+      const t = elementToInline(el).trim();
+      return t ? `> ${t.split("\n").join("\n> ")}\n\n` : "";
+    }
+    case "PRE": {
+      const t = el.innerText.trim();
+      return t ? `\`\`\`\n${t}\n\`\`\`\n\n` : "";
+    }
+    case "TABLE": {
+      const t = tableToMarkdown(el).trim();
+      return t ? `${t}\n\n` : "";
+    }
+    default:
+      return "";
+  }
 }
 
 function extractMarkdown(profile) {
@@ -88,6 +139,17 @@ function extractMarkdown(profile) {
   const allSet = new Set(all);
   let markdown = "";
 
+  let currentContainer = null;
+  let currentContainerMd = "";
+
+  const flushUserMessage = () => {
+    if (currentContainerMd.trim()) {
+      markdown += wrapAsQuote(currentContainerMd.trim()) + "\n\n";
+    }
+    currentContainer = null;
+    currentContainerMd = "";
+  };
+
   for (const el of all) {
     if (isExcluded(el, profile.excludeSelectors)) continue;
 
@@ -97,67 +159,32 @@ function extractMarkdown(profile) {
     const ancestorMatch = el.parentElement && el.parentElement.closest(BLOCK_SELECTOR);
     if (ancestorMatch && allSet.has(ancestorMatch)) continue;
 
-    const userMsg = isUserMessage(el, profile.userMessageSelector);
+    const container = getUserMessageContainer(el, profile.userMessageSelector);
 
-    switch (el.tagName) {
-      case "H1": {
-        const t = `# ${elementToInline(el).trim()}`;
-        markdown += (userMsg ? wrapAsQuote(t) : t) + "\n\n";
-        break;
+    if (container) {
+      if (currentContainer && currentContainer !== container) {
+        flushUserMessage();
       }
-      case "H2": {
-        const t = `## ${elementToInline(el).trim()}`;
-        markdown += (userMsg ? wrapAsQuote(t) : t) + "\n\n";
-        break;
+      currentContainer = container;
+      currentContainerMd += getBlockMarkdown(el);
+    } else {
+      if (currentContainer) {
+        flushUserMessage();
       }
-      case "H3": {
-        const t = `### ${elementToInline(el).trim()}`;
-        markdown += (userMsg ? wrapAsQuote(t) : t) + "\n\n";
-        break;
-      }
-      case "H4": {
-        const t = `#### ${elementToInline(el).trim()}`;
-        markdown += (userMsg ? wrapAsQuote(t) : t) + "\n\n";
-        break;
-      }
-      case "H5": {
-        const t = `##### ${elementToInline(el).trim()}`;
-        markdown += (userMsg ? wrapAsQuote(t) : t) + "\n\n";
-        break;
-      }
-      case "H6": {
-        const t = `###### ${elementToInline(el).trim()}`;
-        markdown += (userMsg ? wrapAsQuote(t) : t) + "\n\n";
-        break;
-      }
-      case "P": {
-        const t = elementToInline(el).trim();
-        if (t) markdown += (userMsg ? wrapAsQuote(t) : t) + "\n\n";
-        break;
-      }
-      case "LI": {
-        const t = elementToInline(el).trim();
-        if (t) markdown += (userMsg ? wrapAsQuote(`* ${t}`) : `* ${t}`) + "\n";
-        break;
-      }
-      case "BLOCKQUOTE": {
+      const blockMd = getBlockMarkdown(el);
+      if (el.tagName === "BLOCKQUOTE") {
         const t = elementToInline(el).trim();
         if (t) markdown += wrapAsQuote(t) + "\n\n";
-        break;
+      } else {
+        markdown += blockMd;
       }
-      case "PRE": {
-        const t = el.innerText.trim();
-        if (t) {
-          const block = `\`\`\`\n${t}\n\`\`\``;
-          markdown += (userMsg ? wrapAsQuote(block) : block) + "\n\n";
-        }
-        break;
-      }
-      case "TABLE":
-        markdown += userMsg ? wrapAsQuote(tableToMarkdown(el).trim()) + "\n\n" : tableToMarkdown(el);
-        break;
     }
   }
+
+  if (currentContainer) {
+    flushUserMessage();
+  }
+
   return markdown.trim() + "\n";
 }
 
