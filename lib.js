@@ -231,8 +231,8 @@ async function syncFilterSettings(config) {
   const remoteTs = remote.updatedAt || 0;
   const localTs  = config.filterSync.lastPushed || 0;
 
-  if (remoteTs > localTs) {
-    // Remote is newer → adopt remote settings.
+  // On initial sync (lastPushed === 0) or whenever remote is newer, adopt remote settings.
+  if (localTs === 0 || remoteTs > localTs) {
     return {
       action: "pull",
       updatedAt: remoteTs,
@@ -241,7 +241,7 @@ async function syncFilterSettings(config) {
     };
   }
 
-  // Local is newer (or same) → push.
+  // Local is newer → push.
   const { updatedAt } = await pushFilterSettings(config);
   return { action: "push", updatedAt };
 }
