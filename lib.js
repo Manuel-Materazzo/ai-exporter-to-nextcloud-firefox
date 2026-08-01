@@ -17,17 +17,86 @@ const DEFAULT_CONFIG = {
     lastPushed: 0       // ms timestamp of last successful push
   },
   // Profiles let you tune extraction per-site. First matching hostnamePattern wins.
-  // Keep a catch-all "default" profile (hostnamePattern ".*") last.
   profiles: [
     {
-      id: "default",
-      hostnamePattern: ".*",
-      containerSelector: "",              // CSS selector to scope extraction; empty = whole <body>
+      id: "claude",
+      hostnamePattern: "claude\\.ai",
+      containerSelector: "",
       excludeSelectors: ["nav", "header", "footer", "button", "form"],
-      userMessageSelector: "",            // CSS selector for user-message containers; matched content is wrapped in a blockquote
-      startDelimiters: [],                // drop everything BEFORE the earliest match
-      endDelimiters: [],                  // drop everything AFTER the earliest match (searched after start cut)
-      maskRules: []                       // [{pattern, flags, replacement}] applied in order
+      userMessageSelector: "",
+      startDelimiters: [],
+      endDelimiters: [],
+      maskRules: []
+    },
+    {
+      id: "gemini",
+      hostnamePattern: "gemini\\.google\\.com",
+      containerSelector: "",
+      excludeSelectors: ["nav", "header", "footer", "button", "form"],
+      userMessageSelector: "",
+      startDelimiters: [],
+      endDelimiters: [],
+      maskRules: []
+    },
+    {
+      id: "chatgpt",
+      hostnamePattern: "chatgpt\\.com",
+      containerSelector: "",
+      excludeSelectors: ["nav", "header", "footer", "button", "form"],
+      userMessageSelector: "",
+      startDelimiters: [],
+      endDelimiters: [],
+      maskRules: []
+    },
+    {
+      id: "perplexity",
+      hostnamePattern: "(www\\.)?perplexity\\.ai",
+      containerSelector: "",
+      excludeSelectors: ["nav", "header", "footer", "button", "form"],
+      userMessageSelector: "",
+      startDelimiters: [],
+      endDelimiters: [],
+      maskRules: []
+    },
+    {
+      id: "deepseek",
+      hostnamePattern: "chat\\.deepseek\\.com",
+      containerSelector: "",
+      excludeSelectors: ["nav", "header", "footer", "button", "form"],
+      userMessageSelector: "",
+      startDelimiters: [],
+      endDelimiters: [],
+      maskRules: []
+    },
+    {
+      id: "qwen",
+      hostnamePattern: "chat\\.qwen\\.ai",
+      containerSelector: "",
+      excludeSelectors: ["nav", "header", "footer", "button", "form"],
+      userMessageSelector: "",
+      startDelimiters: [],
+      endDelimiters: [],
+      maskRules: []
+    },
+    {
+      id: "kimi",
+      hostnamePattern: "(www\\.)?kimi\\.com",
+      containerSelector: "",
+      excludeSelectors: ["nav", "header", "footer", "button", "form"],
+      userMessageSelector: "",
+      startDelimiters: [],
+      endDelimiters: [],
+      maskRules: []
+    },
+    {
+      id: "mistral",
+      hostnamePattern: "chat\\.mistral\\.ai",
+      containerSelector: "",
+      excludeSelectors: ["nav", "header", "footer", "button", "form"],
+      userMessageSelector: "",
+      startDelimiters: [],
+      endDelimiters: [],
+      maskRules: []
     }
   ],
   urlMap: {}   // url -> { filename, updated } -- persisted mapping so re-exports hit the same remote file
@@ -74,7 +143,7 @@ function matchProfile(profiles, hostname) {
       /* invalid regex in a profile: skip it */
     }
   }
-  return profiles[profiles.length - 1];
+  return null;
 }
 
 // ---------------------------------------------------------------------------

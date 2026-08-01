@@ -217,6 +217,10 @@ async function runExport(manual) {
   try {
     const config = await getConfig();
     const profile = matchProfile(config.profiles, location.hostname);
+    if (!profile) {
+      if (manual) console.warn("[AI Exporter] no profile matching domain: " + location.hostname);
+      return { ok: false, reason: "no_profile" };
+    }
 
     let markdown = extractMarkdown(profile);
     markdown = applyCropping(markdown, profile.startDelimiters, profile.endDelimiters);
