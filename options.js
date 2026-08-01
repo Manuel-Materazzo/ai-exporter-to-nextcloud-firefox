@@ -9,6 +9,8 @@ async function loadIntoForm() {
   document.getElementById("autoEnabled").checked = config.autoExport.enabled;
   document.getElementById("delaySeconds").value = config.autoExport.delaySeconds;
 
+  document.getElementById("notificationsEnabled").checked = config.notifications ? config.notifications.enabled !== false : true;
+
   document.getElementById("filterSyncEnabled").checked = config.filterSync.enabled;
   document.getElementById("filterSyncFilename").value = config.filterSync.filename || DEFAULT_CONFIG.filterSync.filename;
   updateLastSyncedLabel(config.filterSync.lastPushed);
@@ -23,6 +25,7 @@ function readForm() {
   const remoteFolder = document.getElementById("remoteFolder").value.trim() || "AI-Chats";
   const autoEnabled = document.getElementById("autoEnabled").checked;
   const delaySeconds = Math.max(1, Number(document.getElementById("delaySeconds").value) || 10);
+  const notificationsEnabled = document.getElementById("notificationsEnabled").checked;
   const filterSyncEnabled = document.getElementById("filterSyncEnabled").checked;
   const filterSyncFilename = document.getElementById("filterSyncFilename").value.trim() || DEFAULT_CONFIG.filterSync.filename;
 
@@ -34,7 +37,7 @@ function readForm() {
     throw new Error("Profiles JSON is invalid: " + e.message);
   }
 
-  return { baseUrl, username, appPassword, remoteFolder, autoEnabled, delaySeconds, filterSyncEnabled, filterSyncFilename, profiles };
+  return { baseUrl, username, appPassword, remoteFolder, autoEnabled, delaySeconds, notificationsEnabled, filterSyncEnabled, filterSyncFilename, profiles };
 }
 
 async function save() {
@@ -52,6 +55,9 @@ async function save() {
       autoExport: {
         enabled: form.autoEnabled,
         delaySeconds: form.delaySeconds
+      },
+      notifications: {
+        enabled: form.notificationsEnabled
       },
       filterSync: {
         enabled: form.filterSyncEnabled,

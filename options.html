@@ -51,10 +51,13 @@
   <label>Delay after pressing Enter (seconds)</label>
   <input type="number" id="delaySeconds" min="1" max="120" style="width:100px" />
 
+  <h2>Notifications</h2>
+  <label class="inline"><input type="checkbox" id="notificationsEnabled" /> Enable desktop notifications on export</label>
+
   <h2>Filter settings sync</h2>
-  <label class="inline"><input type="checkbox" id="filterSyncEnabled" /> Sync filter settings (profiles &amp; auto-export) with Nextcloud</label>
+  <label class="inline"><input type="checkbox" id="filterSyncEnabled" /> Sync filter settings (profiles, auto-export &amp; notifications) with Nextcloud</label>
   <p><small>
-    When enabled, your extraction profiles and auto-export settings are stored as
+    When enabled, your extraction profiles and preferences are stored as
     <code>.filter-settings.json</code> inside your remote folder. On each browser
     start the extension compares timestamps: the newer version wins.
     You can also sync manually at any time with the button below.

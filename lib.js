@@ -11,6 +11,9 @@ const DEFAULT_CONFIG = {
     enabled: true,
     delaySeconds: 10
   },
+  notifications: {
+    enabled: true
+  },
   filterSync: {
     enabled: false,     // when true, profiles are synced to/from Nextcloud
     filename: ".filter-settings.json",  // file inside remoteFolder
@@ -124,6 +127,7 @@ async function getConfig() {
   return {
     nextcloud: { ...DEFAULT_CONFIG.nextcloud, ...(cfg.nextcloud || {}) },
     autoExport: { ...DEFAULT_CONFIG.autoExport, ...(cfg.autoExport || {}) },
+    notifications: { ...DEFAULT_CONFIG.notifications, ...(cfg.notifications || {}) },
     filterSync: { ...DEFAULT_CONFIG.filterSync, ...(cfg.filterSync || {}) },
     profiles: (cfg.profiles && cfg.profiles.length) ? cfg.profiles : DEFAULT_CONFIG.profiles,
     urlMap: cfg.urlMap || {}
@@ -168,7 +172,7 @@ function filterSyncAuthHeader(config) {
 }
 
 /**
- * Push the current profiles (and autoExport) to Nextcloud.
+ * Push the current profiles (and autoExport/notifications) to Nextcloud.
  * Returns { ok, updatedAt } or throws.
  */
 async function pushFilterSettings(config) {
@@ -177,7 +181,8 @@ async function pushFilterSettings(config) {
   const payload = JSON.stringify({
     updatedAt: now,
     profiles: config.profiles,
-    autoExport: config.autoExport
+    autoExport: config.autoExport,
+    notifications: config.notifications
   }, null, 2);
 
   const res = await fetch(davUrl, {
@@ -217,7 +222,7 @@ async function pullFilterSettings(config) {
  *   - If remote.updatedAt > config.filterSync.lastPushed → remote is newer → pull.
  *   - Otherwise → local is newer (or equal) → push.
  *
- * Returns { action: 'push'|'pull'|'none', updatedAt, profiles?, autoExport? }
+ * Returns { action: 'push'|'pull'|'none', updatedAt, profiles?, autoExport?, notifications? }
  */
 async function syncFilterSettings(config) {
   const remote = await pullFilterSettings(config);
@@ -237,7 +242,8 @@ async function syncFilterSettings(config) {
       action: "pull",
       updatedAt: remoteTs,
       profiles: remote.profiles,
-      autoExport: remote.autoExport
+      autoExport: remote.autoExport,
+      notifications: remote.notifications
     };
   }
 

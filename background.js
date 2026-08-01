@@ -112,14 +112,16 @@ async function handleExport({ url, title, markdown }) {
   config.urlMap[url] = { filename, updated: Date.now() };
   await setConfig(config);
 
-  try {
-    await browser.notifications.create({
-      type: "basic",
-      title: "AI Chat exported",
-      message: `${filename} updated on Nextcloud`
-    });
-  } catch (e) {
-    /* notifications permission or platform quirk -- non-fatal */
+  if (config.notifications && config.notifications.enabled) {
+    try {
+      await browser.notifications.create({
+        type: "basic",
+        title: "AI Chat exported",
+        message: `${filename} updated on Nextcloud`
+      });
+    } catch (e) {
+      /* notifications permission or platform quirk -- non-fatal */
+    }
   }
 
   return { ok: true, filename };
@@ -159,7 +161,7 @@ async function handleFilterSync() {
   const result = await syncFilterSettings(config);
 
   if (result.action === "pull") {
-    // Remote was newer: update local profiles / autoExport and record the remote timestamp.
+    // Remote was newer: update local profiles / autoExport / notifications and record the remote timestamp.
     const updated = {
       ...config,
       filterSync: { ...config.filterSync, lastPushed: result.updatedAt }
@@ -169,6 +171,9 @@ async function handleFilterSync() {
     }
     if (result.autoExport) {
       updated.autoExport = { ...config.autoExport, ...result.autoExport };
+    }
+    if (result.notifications) {
+      updated.notifications = { ...config.notifications, ...result.notifications };
     }
     await setConfig(updated);
     console.info("[AI Exporter] filter-sync: pulled remote settings (remote was newer)");
