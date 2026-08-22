@@ -24,6 +24,7 @@ const DEFAULT_CONFIG = {
     {
       id: "claude",
       hostnamePattern: "claude\\.ai",
+      delaySeconds: 20,
       containerSelector: "",
       excludeSelectors: ["nav", "header", "footer", "button", "form"],
       userMessageSelector: "",
@@ -34,6 +35,7 @@ const DEFAULT_CONFIG = {
     {
       id: "gemini",
       hostnamePattern: "gemini\\.google\\.com",
+      delaySeconds: null,
       containerSelector: "",
       excludeSelectors: ["nav", "header", "footer", "button", "form"],
       userMessageSelector: "",
@@ -44,6 +46,7 @@ const DEFAULT_CONFIG = {
     {
       id: "chatgpt",
       hostnamePattern: "chatgpt\\.com",
+      delaySeconds: null,
       containerSelector: "",
       excludeSelectors: ["nav", "header", "footer", "button", "form"],
       userMessageSelector: "",
@@ -54,6 +57,7 @@ const DEFAULT_CONFIG = {
     {
       id: "perplexity",
       hostnamePattern: "(www\\.)?perplexity\\.ai",
+      delaySeconds: 20,
       containerSelector: "",
       excludeSelectors: ["nav", "header", "footer", "button", "form"],
       userMessageSelector: "",
@@ -64,6 +68,7 @@ const DEFAULT_CONFIG = {
     {
       id: "deepseek",
       hostnamePattern: "chat\\.deepseek\\.com",
+      delaySeconds: null,
       containerSelector: "",
       excludeSelectors: ["nav", "header", "footer", "button", "form"],
       userMessageSelector: "",
@@ -74,6 +79,7 @@ const DEFAULT_CONFIG = {
     {
       id: "qwen",
       hostnamePattern: "chat\\.qwen\\.ai",
+      delaySeconds: null,
       containerSelector: "",
       excludeSelectors: ["nav", "header", "footer", "button", "form"],
       userMessageSelector: "",
@@ -84,6 +90,7 @@ const DEFAULT_CONFIG = {
     {
       id: "kimi",
       hostnamePattern: "(www\\.)?kimi\\.com",
+      delaySeconds: null,
       containerSelector: "",
       excludeSelectors: ["nav", "header", "footer", "button", "form"],
       userMessageSelector: "",
@@ -94,6 +101,7 @@ const DEFAULT_CONFIG = {
     {
       id: "mistral",
       hostnamePattern: "chat\\.mistral\\.ai",
+      delaySeconds: null,
       containerSelector: "",
       excludeSelectors: ["nav", "header", "footer", "button", "form"],
       userMessageSelector: "",

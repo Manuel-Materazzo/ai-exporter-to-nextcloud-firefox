@@ -74,6 +74,7 @@
   <p><small>
     One JSON object per site profile. <code>hostnamePattern</code> is a regex tested against
     <code>location.hostname</code> — first match wins, so keep a catch-all <code>".*"</code> profile last.
+    <br/><b>delaySeconds</b>: per-site delay after pressing Enter (seconds). Overrides the global delay when set to a positive number; set to <code>null</code> to inherit the global value.
     <br/><b>containerSelector</b>: CSS selector to scope extraction (empty = whole page).
     <br/><b>excludeSelectors</b>: CSS selectors to skip (e.g. sidebars, nav).
     <br/><b>userMessageSelector</b>: CSS selector for user-message containers — matched blocks are

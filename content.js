@@ -283,7 +283,13 @@ document.addEventListener(
     if (!editable) return;
     getConfig().then((config) => {
       if (!config.autoExport.enabled) return;
-      scheduleExport(config.autoExport.delaySeconds);
+      // Resolve delay: profile-level overrides the global setting when explicitly set.
+      const profile = matchProfile(config.profiles, location.hostname);
+      const delay =
+        (profile && profile.delaySeconds != null && Number(profile.delaySeconds) > 0)
+          ? Number(profile.delaySeconds)
+          : config.autoExport.delaySeconds;
+      scheduleExport(delay);
     });
   },
   true
