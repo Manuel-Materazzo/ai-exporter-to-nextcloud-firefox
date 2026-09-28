@@ -3,93 +3,307 @@
 <head>
   <meta charset="utf-8" />
   <title>AI Chat Exporter — Settings</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 24px auto; padding: 0 16px; color: #222; }
-    h1 { font-size: 20px; }
-    h2 { font-size: 15px; margin-top: 28px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
-    label { display: block; font-size: 13px; font-weight: 600; margin-top: 12px; }
-    input[type=text], input[type=password], input[type=number] {
-      width: 100%; padding: 6px 8px; margin-top: 4px; box-sizing: border-box; font-size: 13px;
-    }
-    small { color: #666; }
-    .row { display: flex; gap: 12px; }
-    .row > div { flex: 1; }
-    textarea#profilesJson { width: 100%; height: 260px; font-family: ui-monospace, monospace; font-size: 12px; margin-top: 6px; }
-    button { padding: 8px 14px; margin-top: 12px; margin-right: 8px; cursor: pointer; }
-    #saveStatus, #testStatus, #syncStatus { font-size: 13px; margin-top: 8px; }
-    .ok { color: #147a2e; }
-    .err { color: #a3231b; }
-    label.inline { display: inline-flex; align-items: center; gap: 6px; font-weight: normal; }
-  </style>
+  <link rel="stylesheet" href="options.css" />
 </head>
 <body>
-  <h1>AI Chat → Nextcloud Exporter</h1>
+  <div class="container">
+    <header class="app-header">
+      <div class="header-title-row">
+        <span class="header-icon">🤖</span>
+        <div>
+          <h1>AI Chat → Nextcloud Exporter</h1>
+          <p class="subtitle">Automatic export, filtering, and syncing of AI chat conversations to your Nextcloud instance</p>
+        </div>
+      </div>
+    </header>
 
-  <h2>Nextcloud connection</h2>
-  <label>Nextcloud base URL <small>(e.g. https://cloud.example.com)</small></label>
-  <input type="text" id="baseUrl" placeholder="https://cloud.example.com" />
+    <!-- Nextcloud Connection -->
+    <section class="card">
+      <h2>☁️ Nextcloud Connection</h2>
+      <label for="baseUrl">Nextcloud Base URL <small>(e.g. https://cloud.example.com)</small></label>
+      <input type="text" id="baseUrl" placeholder="https://cloud.example.com" />
 
-  <div class="row">
-    <div>
-      <label>Username</label>
-      <input type="text" id="username" />
+      <div class="row">
+        <div>
+          <label for="username">Username</label>
+          <input type="text" id="username" autocomplete="username" />
+        </div>
+        <div>
+          <label for="appPassword">App Password <small>(Nextcloud → Settings → Security → Devices &amp; sessions)</small></label>
+          <input type="password" id="appPassword" autocomplete="current-password" />
+        </div>
+      </div>
+
+      <label for="remoteFolder">Remote Folder <small>(created automatically, relative to your files root)</small></label>
+      <input type="text" id="remoteFolder" placeholder="AI-Chats" />
+
+      <div style="margin-top: 14px;">
+        <button type="button" id="testConnection" class="btn btn-secondary">Test Connection</button>
+        <div id="testStatus"></div>
+      </div>
+    </section>
+
+    <!-- Auto-Export & Notifications -->
+    <section class="card">
+      <h2>⚡ Auto-Export &amp; Notifications</h2>
+      <div>
+        <label class="toggle-label">
+          <input type="checkbox" id="autoEnabled" />
+          <span>Enable automatic export after sending a prompt (Enter key)</span>
+        </label>
+        <div class="sub-setting">
+          <label for="delaySeconds">Default delay after pressing Enter (seconds)</label>
+          <input type="number" id="delaySeconds" min="1" max="120" style="width: 110px;" />
+        </div>
+      </div>
+
+      <div style="margin-top: 12px;">
+        <label class="toggle-label">
+          <input type="checkbox" id="notificationsEnabled" />
+          <span>Enable desktop notifications on export</span>
+        </label>
+      </div>
+    </section>
+
+    <!-- Filter Settings Sync -->
+    <section class="card">
+      <h2>🔄 Filter Settings Sync</h2>
+      <div>
+        <label class="toggle-label">
+          <input type="checkbox" id="filterSyncEnabled" />
+          <span>Sync filter settings (profiles, auto-export &amp; notifications) with Nextcloud</span>
+        </label>
+      </div>
+      <p class="hint">
+        When enabled, your extraction profiles and preferences are stored as
+        <code>.filter-settings.json</code> inside your remote folder. On each browser
+        start the extension compares timestamps: the newer version wins.
+        You can also sync manually at any time.
+      </p>
+
+      <div class="row" style="align-items: flex-end;">
+        <div style="flex: 2;">
+          <label for="filterSyncFilename">Remote Settings Filename <small>(inside the remote folder)</small></label>
+          <input type="text" id="filterSyncFilename" placeholder=".filter-settings.json" />
+        </div>
+        <div style="flex: 1;">
+          <button type="button" id="syncNow" class="btn btn-secondary" style="width: 100%;">Sync Now</button>
+        </div>
+      </div>
+
+      <div style="margin-top: 8px;">
+        <span id="filterSyncLastSynced" class="hint"></span>
+        <div id="syncStatus"></div>
+      </div>
+    </section>
+
+    <!-- Site Extraction Profiles -->
+    <section class="card" id="profilesSection">
+      <div class="section-header">
+        <h2>🌐 Site Extraction Profiles</h2>
+        <p class="hint">
+          Tune extraction rules per site. Evaluated in order from top to bottom — the <strong>first matching hostname regex wins</strong>. Keep any catch-all (e.g. <code>.*</code>) at the bottom.
+        </p>
+      </div>
+
+      <!-- Toolbar & View Switcher -->
+      <div class="profiles-toolbar">
+        <div class="view-tabs">
+          <button type="button" id="tabVisual" class="tab-btn active">🎛️ Visual Editor</button>
+          <button type="button" id="tabJson" class="tab-btn">📝 Raw JSON</button>
+        </div>
+        <div class="toolbar-actions">
+          <button type="button" id="addProfileBtn" class="btn btn-primary btn-sm">+ Add Site Profile</button>
+          <button type="button" id="openImportBtn" class="btn btn-secondary btn-sm">⬆️ Import JSON</button>
+          <button type="button" id="openExportBtn" class="btn btn-secondary btn-sm">⬇️ Export JSON</button>
+          <button type="button" id="expandAllBtn" class="btn btn-outline btn-sm" title="Expand all site cards">Expand All</button>
+          <button type="button" id="collapseAllBtn" class="btn btn-outline btn-sm" title="Collapse all site cards">Collapse All</button>
+        </div>
+      </div>
+
+      <!-- Visual View -->
+      <div id="profilesVisualView">
+        <div id="profilesSummary" class="profiles-summary"></div>
+        <div id="profilesList" class="profiles-list"></div>
+        <button type="button" id="addProfileBottomBtn" class="btn btn-dashed">+ Add Another Site Profile</button>
+      </div>
+
+      <!-- Raw JSON View -->
+      <div id="profilesJsonView" style="display: none;">
+        <div class="json-actions">
+          <button type="button" id="prettifyJsonBtn" class="btn btn-outline btn-sm">Format / Prettify JSON</button>
+          <span id="jsonValidationStatus" class="json-status"></span>
+        </div>
+        <textarea id="profilesJson" spellcheck="false" placeholder="[ ... profiles JSON ... ]"></textarea>
+      </div>
+    </section>
+
+    <!-- Sticky Save Bar -->
+    <div class="save-bar">
+      <div class="save-actions">
+        <button type="button" id="save" class="btn btn-primary btn-lg">Save Settings</button>
+        <button type="button" id="reset" class="btn btn-outline btn-lg">Reset Profiles to Default</button>
+      </div>
+      <div id="saveStatus"></div>
     </div>
-    <div>
-      <label>App password <small>(Nextcloud → Settings → Security → Devices & sessions)</small></label>
-      <input type="password" id="appPassword" />
+  </div>
+
+  <!-- Templates for safe DOM construction without innerHTML -->
+  <template id="profileCardTemplate">
+    <div class="profile-card collapsed">
+      <div class="profile-card-header">
+        <div class="profile-header-left">
+          <span class="profile-order-badge" title="Evaluation order"></span>
+          <span class="profile-name"></span>
+          <span class="badge badge-code header-hostname-badge"></span>
+          <span class="badge header-delay-badge"></span>
+          <span class="badge badge-subtle header-excludes-badge" style="display: none;"></span>
+          <span class="badge badge-amber header-masks-badge" style="display: none;"></span>
+        </div>
+        <div class="profile-header-actions">
+          <button type="button" class="btn-icon move-up-btn" title="Move up in evaluation priority">▲</button>
+          <button type="button" class="btn-icon move-down-btn" title="Move down in evaluation priority">▼</button>
+          <button type="button" class="btn-icon duplicate-btn" title="Duplicate profile">📋</button>
+          <button type="button" class="btn-icon btn-danger delete-btn" title="Delete profile">🗑️</button>
+          <span class="chevron">▼</span>
+        </div>
+      </div>
+      <div class="profile-card-body">
+        <div class="form-grid">
+          <div>
+            <label>Profile ID / Name <small>(identifier)</small></label>
+            <input type="text" class="field-id" placeholder="e.g. claude, chatgpt" />
+          </div>
+          <div>
+            <label>Hostname Pattern <small>(regex tested against location.hostname)</small></label>
+            <input type="text" class="field-hostname mono" placeholder="e.g. claude\\.ai or (www\\.)?perplexity\\.ai" />
+            <div class="regex-status"></div>
+          </div>
+        </div>
+
+        <div class="delay-override-row">
+          <label class="checkbox-label" style="margin: 0;">
+            <input type="checkbox" class="field-delay-toggle" />
+            <span>Override global auto-export delay for this site</span>
+          </label>
+          <div class="delay-input-wrap" style="display: none;">
+            <input type="number" class="field-delay" min="1" max="120" style="width: 85px;" />
+            <small>seconds</small>
+          </div>
+          <small class="delay-inherited-hint" style="color: var(--text-muted);">(Inherits global delay)</small>
+        </div>
+
+        <div class="form-grid" style="margin-top: 12px;">
+          <div>
+            <label>Container Selector <small>(optional CSS selector to scope extraction)</small></label>
+            <input type="text" class="field-container mono" placeholder="Leave empty for whole page" />
+          </div>
+          <div>
+            <label>User Message Selector <small>(CSS selector for user messages to blockquote)</small></label>
+            <input type="text" class="field-user-msg mono" placeholder="e.g. div[data-message-author-role='user']" />
+          </div>
+        </div>
+
+        <div class="field-group">
+          <div class="field-label-row">
+            <label>Exclude Selectors <small>(CSS selectors to skip, e.g. nav, sidebars, buttons)</small></label>
+            <button type="button" class="btn-link add-default-excludes-btn">+ Add standard excludes (nav, header, footer, button, form)</button>
+          </div>
+          <textarea class="field-excludes mono" rows="3" placeholder="nav, header, footer, button, form (one per line or comma-separated)"></textarea>
+        </div>
+
+        <div class="form-grid">
+          <div>
+            <label>Start Delimiters <small>(literal strings; text before match is cropped)</small></label>
+            <textarea class="field-start-delims mono" rows="2" placeholder="One literal string per line"></textarea>
+          </div>
+          <div>
+            <label>End Delimiters <small>(literal strings; text after match is cropped)</small></label>
+            <textarea class="field-end-delims mono" rows="2" placeholder="One literal string per line"></textarea>
+          </div>
+        </div>
+
+        <div class="mask-rules-section">
+          <div class="field-label-row">
+            <label>Masking Rules <small>(regex replacements applied in order before export)</small></label>
+            <button type="button" class="btn btn-outline btn-sm add-mask-rule-btn">+ Add Mask Rule</button>
+          </div>
+          <div class="mask-rules-list"></div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <template id="maskRuleTemplate">
+    <div class="mask-rule-row">
+      <div class="mask-col-pattern">
+        <input type="text" class="mask-field-pattern" placeholder="Regex pattern (e.g. api_key=[^&]+)" />
+      </div>
+      <div class="mask-col-flags">
+        <input type="text" class="mask-field-flags mono" placeholder="Flags" value="g" title="Regex flags (e.g. g, gi)" />
+      </div>
+      <div class="mask-col-replacement">
+        <input type="text" class="mask-field-replacement" placeholder="Replacement (e.g. [REDACTED])" />
+      </div>
+      <button type="button" class="btn-icon btn-danger remove-mask-btn" title="Remove mask rule">✕</button>
+    </div>
+  </template>
+
+  <!-- Import / Export Modal -->
+  <div id="modalBackdrop" class="modal-backdrop" style="display: none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="modalTitle">Import / Export Profiles</h3>
+        <button type="button" id="modalCloseBtn" class="modal-close" title="Close">&times;</button>
+      </div>
+      <div class="modal-tabs">
+        <button type="button" id="modalTabExport" class="modal-tab">Export JSON</button>
+        <button type="button" id="modalTabImport" class="modal-tab">Import JSON</button>
+      </div>
+      <div class="modal-body">
+        <!-- Export Panel -->
+        <div id="modalExportPanel">
+          <p class="hint">Export your current site extraction profiles as JSON. You can copy the code to your clipboard or download it as a backup file.</p>
+          <textarea id="exportJsonArea" readonly rows="12" class="mono" spellcheck="false"></textarea>
+          <div class="modal-action-row">
+            <button type="button" id="copyExportBtn" class="btn btn-primary">📋 Copy to Clipboard</button>
+            <button type="button" id="downloadExportBtn" class="btn btn-secondary">💾 Download .json File</button>
+            <span id="exportFeedback" class="action-feedback"></span>
+          </div>
+        </div>
+
+        <!-- Import Panel -->
+        <div id="modalImportPanel" style="display: none;">
+          <p class="hint">Upload a profiles JSON file or paste JSON code directly below to import site settings.</p>
+          <div class="file-upload-box">
+            <label for="importFileInput" class="btn btn-secondary btn-sm" style="margin: 0; cursor: pointer;">📁 Choose .json File</label>
+            <input type="file" id="importFileInput" accept=".json,application/json" style="display: none;" />
+            <span id="importFileName" class="import-file-name">No file chosen</span>
+          </div>
+          <label for="importJsonArea">Or paste JSON content:</label>
+          <textarea id="importJsonArea" rows="8" class="mono" placeholder="Paste profiles JSON array here..." spellcheck="false"></textarea>
+          
+          <div class="import-mode-group">
+            <label class="radio-label">
+              <input type="radio" name="importMode" value="replace" checked />
+              <span><strong>Replace</strong> all existing site profiles</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="importMode" value="append" />
+              <span><strong>Append</strong> to existing site profiles</span>
+            </label>
+          </div>
+
+          <div id="importValidationStatus" class="import-status"></div>
+
+          <div class="modal-action-row">
+            <button type="button" id="applyImportBtn" class="btn btn-primary" disabled>Apply Import</button>
+            <button type="button" id="cancelImportBtn" class="btn btn-outline">Cancel</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
-
-  <label>Remote folder <small>(created automatically, relative to your files root)</small></label>
-  <input type="text" id="remoteFolder" placeholder="AI-Chats" />
-
-  <button id="testConnection">Test connection</button>
-  <div id="testStatus"></div>
-
-  <h2>Auto-export</h2>
-  <label class="inline"><input type="checkbox" id="autoEnabled" /> Enable automatic export</label>
-  <label>Delay after pressing Enter (seconds)</label>
-  <input type="number" id="delaySeconds" min="1" max="120" style="width:100px" />
-
-  <h2>Notifications</h2>
-  <label class="inline"><input type="checkbox" id="notificationsEnabled" /> Enable desktop notifications on export</label>
-
-  <h2>Filter settings sync</h2>
-  <label class="inline"><input type="checkbox" id="filterSyncEnabled" /> Sync filter settings (profiles, auto-export &amp; notifications) with Nextcloud</label>
-  <p><small>
-    When enabled, your extraction profiles and preferences are stored as
-    <code>.filter-settings.json</code> inside your remote folder. On each browser
-    start the extension compares timestamps: the newer version wins.
-    You can also sync manually at any time with the button below.
-  </small></p>
-  <label>Remote settings filename <small>(inside the remote folder above)</small></label>
-  <input type="text" id="filterSyncFilename" placeholder=".filter-settings.json" style="width:260px" />
-  <div>
-    <button id="syncNow">Sync now</button>
-    <span id="filterSyncLastSynced" style="font-size:12px; color:#666; vertical-align:middle;"></span>
-  </div>
-  <div id="syncStatus"></div>
-
-  <h2>Extraction profiles</h2>
-  <p><small>
-    One JSON object per site profile. <code>hostnamePattern</code> is a regex tested against
-    <code>location.hostname</code> — first match wins, so keep a catch-all <code>".*"</code> profile last.
-    <br/><b>delaySeconds</b>: per-site delay after pressing Enter (seconds). Overrides the global delay when set to a positive number; set to <code>null</code> to inherit the global value.
-    <br/><b>containerSelector</b>: CSS selector to scope extraction (empty = whole page).
-    <br/><b>excludeSelectors</b>: CSS selectors to skip (e.g. sidebars, nav).
-    <br/><b>userMessageSelector</b>: CSS selector for user-message containers — matched blocks are
-    wrapped in a <code>&gt; blockquote</code> (citation block) to distinguish them from AI replies.
-    <br/><b>startDelimiters</b> / <b>endDelimiters</b>: literal strings — text before the earliest
-    start match and after the earliest end match is discarded.
-    <br/><b>maskRules</b>: <code>[{"pattern": "regex", "flags": "g", "replacement": "..."}]</code>, applied in order.
-  </small></p>
-  <textarea id="profilesJson" spellcheck="false"></textarea>
-
-  <div>
-    <button id="save">Save settings</button>
-    <button id="reset">Reset profiles to default</button>
-  </div>
-  <div id="saveStatus"></div>
 
   <script src="lib.js"></script>
   <script src="options.js"></script>
