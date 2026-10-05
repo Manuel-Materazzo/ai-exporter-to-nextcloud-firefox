@@ -29,8 +29,17 @@ remote file (de-duplicated, append-only) — keyed by the page's URL.
 5. **Remote folder**: where files get created, relative to your Nextcloud
    files root (e.g. `AI-Chats`). It's created automatically.
 6. Click **Test connection** to confirm auth works before relying on it.
-7. Set the **auto-export delay** (default 10s — how long to wait after Enter
-   before scraping the page, to give the model time to finish responding).
+7. Choose the **Detection Mode**:
+   - **Smart (default)**: Uses a page-agnostic DOM observer to detect when the AI
+     is streaming responses and automatically triggers export once generation
+     settles (after a configurable silence window, default 2.5s).
+   - **Fixed delay**: Waits a set number of seconds after prompt submission before
+     exporting.
+8. Toggle **Send / Submit button clicks**: When enabled (default), prompt
+   submissions triggered by clicking Send/Submit buttons or form submits are
+   tracked in addition to the Enter key.
+9. Both detection mode and button detection can be customized globally or
+   overridden per site profile.
 
 ### Extraction profiles (cropping / masking / scoping)
 
@@ -40,6 +49,12 @@ The **Extraction profiles** box is a JSON array. Each profile:
 {
   "id": "chatgpt",
   "hostnamePattern": "chat\\.openai\\.com|chatgpt\\.com",
+  "mode": null,
+  "detectSendButton": null,
+  "delaySeconds": null,
+  "quiescenceSeconds": null,
+  "submitButtonSelector": "",
+  "stopButtonSelector": "",
   "containerSelector": "main",
   "excludeSelectors": ["nav", "aside", "header", "footer", "button", "form"],
   "startDelimiters": ["BEGIN_EXPORT"],
@@ -54,6 +69,10 @@ The **Extraction profiles** box is a JSON array. Each profile:
 - `hostnamePattern` — regex tested against `location.hostname`. The **first**
   profile in the array whose pattern matches is used, so keep a catch-all
   profile with `hostnamePattern: ".*"` **last** in the array as a fallback.
+- `mode` — `"smart"`, `"delay"`, or `null` (inherits global detection mode).
+- `detectSendButton` — `true`, `false`, or `null` (inherits global setting).
+- `delaySeconds` / `quiescenceSeconds` — custom timing override in seconds, or `null` (inherits global).
+- `submitButtonSelector` / `stopButtonSelector` — optional custom CSS selectors.
 - `containerSelector` — CSS selector to scope extraction to (e.g. the main
   conversation pane), cutting out sidebar/header noise entirely. Leave `""`
   to scan the whole page.
@@ -70,15 +89,18 @@ Click **Save settings** when done.
 
 ## How it triggers
 
-- A capturing `keydown` listener on every page watches for **Enter** (no
-  Shift) while focus is in a `<textarea>`, `<input>`, or `contenteditable`
-  element — i.e. a chat prompt box. Nothing is prevented/intercepted; it
-  only *observes*.
-- On that keystroke it (re)starts a timer for your configured delay, then
-  extracts + uploads.
+- **Enter key**: A capturing `keydown` listener watches for **Enter** (no Shift)
+  while focus is in a `<textarea>`, `<input>`, or `contenteditable` element.
+- **Send / Submit button**: Clicks on buttons labeled or styled as send/submit
+  (e.g., `aria-label="Send message"`, `aria-label="Send prompt"`, `aria-label="Submit"`,
+  or buttons inside the prompt form) are detected.
+- **Form submission**: Form submit events on chat inputs trigger the watcher.
+- In **Smart Mode**, prompt submission starts a DOM observer that tracks response
+  streaming and stop buttons, triggering export right after generation completes.
+- In **Fixed Delay Mode**, prompt submission starts a timer for the configured delay.
 - You can also click the toolbar icon → **Export this page now** for an
   immediate manual export (useful right after loading an old conversation
-  you want captured once, without needing to press Enter).
+  you want captured once, without needing to send a prompt).
 
 ## How the Nextcloud update works
 

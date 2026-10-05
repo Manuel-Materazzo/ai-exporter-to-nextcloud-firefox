@@ -8,10 +8,18 @@
 function normalizeProfile(p, fallbackIndex = 1) {
   const id = p && p.id ? String(p.id).trim() : `site-${fallbackIndex}`;
   const hostnamePattern = p && p.hostnamePattern != null ? String(p.hostnamePattern).trim() : "";
+  const mode = p && (p.mode === "smart" || p.mode === "delay") ? p.mode : null;
+  const detectSendButton = p && typeof p.detectSendButton === "boolean" ? p.detectSendButton : null;
   const delaySeconds =
     p && p.delaySeconds != null && !isNaN(Number(p.delaySeconds)) && Number(p.delaySeconds) > 0
       ? Number(p.delaySeconds)
       : null;
+  const quiescenceSeconds =
+    p && p.quiescenceSeconds != null && !isNaN(Number(p.quiescenceSeconds)) && Number(p.quiescenceSeconds) > 0
+      ? Number(p.quiescenceSeconds)
+      : null;
+  const submitButtonSelector = p && p.submitButtonSelector ? String(p.submitButtonSelector).trim() : "";
+  const stopButtonSelector = p && p.stopButtonSelector ? String(p.stopButtonSelector).trim() : "";
   const containerSelector = p && p.containerSelector ? String(p.containerSelector).trim() : "";
   const userMessageSelector = p && p.userMessageSelector ? String(p.userMessageSelector).trim() : "";
   const excludeSelectors = Array.isArray(p && p.excludeSelectors)
@@ -36,7 +44,12 @@ function normalizeProfile(p, fallbackIndex = 1) {
   return {
     id,
     hostnamePattern,
+    mode,
+    detectSendButton,
     delaySeconds,
+    quiescenceSeconds,
+    submitButtonSelector,
+    stopButtonSelector,
     containerSelector,
     excludeSelectors,
     userMessageSelector,
@@ -89,12 +102,30 @@ function renderProfileCard(profile, index, total, isExpanded = false) {
   card.querySelector(".profile-name").textContent = p.id || "untitled";
   card.querySelector(".header-hostname-badge").textContent = p.hostnamePattern || "(empty regex)";
 
+  const modeBadge = card.querySelector(".header-mode-badge");
+  if (modeBadge) {
+    if (p.mode === "smart") {
+      modeBadge.textContent = "Smart";
+      modeBadge.className = "badge badge-primary header-mode-badge";
+      modeBadge.style.display = "";
+    } else if (p.mode === "delay") {
+      modeBadge.textContent = "Delay";
+      modeBadge.className = "badge badge-amber header-mode-badge";
+      modeBadge.style.display = "";
+    } else {
+      modeBadge.style.display = "none";
+    }
+  }
+
   const delayBadge = card.querySelector(".header-delay-badge");
-  if (p.delaySeconds != null) {
-    delayBadge.textContent = `${p.delaySeconds}s delay`;
+  if (p.delaySeconds != null || p.quiescenceSeconds != null) {
+    const parts = [];
+    if (p.delaySeconds != null) parts.push(`${p.delaySeconds}s delay`);
+    if (p.quiescenceSeconds != null) parts.push(`${p.quiescenceSeconds}s settle`);
+    delayBadge.textContent = parts.join(", ");
     delayBadge.className = "badge badge-primary header-delay-badge";
   } else {
-    delayBadge.textContent = "Global delay";
+    delayBadge.textContent = "Global timings";
     delayBadge.className = "badge badge-subtle header-delay-badge";
   }
 
@@ -125,22 +156,39 @@ function renderProfileCard(profile, index, total, isExpanded = false) {
   const hostnameInput = card.querySelector(".field-hostname");
   hostnameInput.value = p.hostnamePattern;
 
+  const modeOverrideSelect = card.querySelector(".field-mode-override");
+  if (modeOverrideSelect) modeOverrideSelect.value = p.mode || "";
+
+  const sendBtnOverrideSelect = card.querySelector(".field-send-btn-override");
+  if (sendBtnOverrideSelect) {
+    sendBtnOverrideSelect.value = p.detectSendButton != null ? String(p.detectSendButton) : "";
+  }
+
   const delayToggle = card.querySelector(".field-delay-toggle");
   const delayWrap = card.querySelector(".delay-input-wrap");
   const delayInput = card.querySelector(".field-delay");
+  const quiescenceInput = card.querySelector(".field-quiescence");
   const delayHint = card.querySelector(".delay-inherited-hint");
 
-  if (p.delaySeconds != null) {
+  if (p.delaySeconds != null || p.quiescenceSeconds != null) {
     delayToggle.checked = true;
-    delayInput.value = p.delaySeconds;
-    delayWrap.style.display = "";
-    delayHint.style.display = "none";
+    if (delayInput) delayInput.value = p.delaySeconds != null ? p.delaySeconds : 10;
+    if (quiescenceInput) quiescenceInput.value = p.quiescenceSeconds != null ? p.quiescenceSeconds : 2.5;
+    if (delayWrap) delayWrap.style.display = "flex";
+    if (delayHint) delayHint.style.display = "none";
   } else {
     delayToggle.checked = false;
-    delayInput.value = 10;
-    delayWrap.style.display = "none";
-    delayHint.style.display = "";
+    if (delayInput) delayInput.value = 10;
+    if (quiescenceInput) quiescenceInput.value = 2.5;
+    if (delayWrap) delayWrap.style.display = "none";
+    if (delayHint) delayHint.style.display = "";
   }
+
+  const submitBtnInput = card.querySelector(".field-submit-btn-selector");
+  if (submitBtnInput) submitBtnInput.value = p.submitButtonSelector || "";
+
+  const stopBtnInput = card.querySelector(".field-stop-btn-selector");
+  if (stopBtnInput) stopBtnInput.value = p.stopButtonSelector || "";
 
   card.querySelector(".field-container").value = p.containerSelector;
   card.querySelector(".field-user-msg").value = p.userMessageSelector;
@@ -224,12 +272,28 @@ function readSingleProfileCard(card, fallbackIndex = 1) {
   const id = card.querySelector(".field-id")?.value.trim() || `site-${fallbackIndex}`;
   const hostnamePattern = card.querySelector(".field-hostname")?.value.trim() || "";
 
+  const modeVal = card.querySelector(".field-mode-override")?.value || "";
+  const mode = modeVal === "smart" || modeVal === "delay" ? modeVal : null;
+
+  const sendBtnVal = card.querySelector(".field-send-btn-override")?.value || "";
+  const detectSendButton = sendBtnVal === "true" ? true : sendBtnVal === "false" ? false : null;
+
   const delayToggle = card.querySelector(".field-delay-toggle");
   const delayInput = card.querySelector(".field-delay");
+  const quiescenceInput = card.querySelector(".field-quiescence");
+
   const delaySeconds =
-    delayToggle && delayToggle.checked
-      ? Math.max(1, Number(delayInput?.value) || 10)
+    delayToggle && delayToggle.checked && delayInput && delayInput.value !== ""
+      ? Math.max(1, Number(delayInput.value) || 10)
       : null;
+
+  const quiescenceSeconds =
+    delayToggle && delayToggle.checked && quiescenceInput && quiescenceInput.value !== ""
+      ? Math.max(0.5, Number(quiescenceInput.value) || 2.5)
+      : null;
+
+  const submitButtonSelector = card.querySelector(".field-submit-btn-selector")?.value.trim() || "";
+  const stopButtonSelector = card.querySelector(".field-stop-btn-selector")?.value.trim() || "";
 
   const containerSelector = card.querySelector(".field-container")?.value.trim() || "";
   const userMessageSelector = card.querySelector(".field-user-msg")?.value.trim() || "";
@@ -265,7 +329,12 @@ function readSingleProfileCard(card, fallbackIndex = 1) {
   return {
     id,
     hostnamePattern,
+    mode,
+    detectSendButton,
     delaySeconds,
+    quiescenceSeconds,
+    submitButtonSelector,
+    stopButtonSelector,
     containerSelector,
     excludeSelectors,
     userMessageSelector,
@@ -308,7 +377,15 @@ async function loadIntoForm() {
   document.getElementById("remoteFolder").value = config.nextcloud.remoteFolder;
 
   document.getElementById("autoEnabled").checked = config.autoExport.enabled;
-  document.getElementById("delaySeconds").value = config.autoExport.delaySeconds;
+  document.getElementById("autoMode").value = config.autoExport.mode || "smart";
+  document.getElementById("detectSendButton").checked =
+    config.autoExport.detectSendButton !== false;
+  document.getElementById("delaySeconds").value = config.autoExport.delaySeconds || 10;
+  document.getElementById("quiescenceSeconds").value = config.autoExport.quiescenceSeconds || 2.5;
+
+  const isSmart = (config.autoExport.mode || "smart") === "smart";
+  const smartWrap = document.getElementById("smartSettingWrap");
+  if (smartWrap) smartWrap.style.display = isSmart ? "" : "none";
 
   document.getElementById("notificationsEnabled").checked =
     config.notifications ? config.notifications.enabled !== false : true;
@@ -331,7 +408,10 @@ function readForm() {
   const appPassword = document.getElementById("appPassword").value;
   const remoteFolder = document.getElementById("remoteFolder").value.trim() || "AI-Chats";
   const autoEnabled = document.getElementById("autoEnabled").checked;
+  const autoMode = document.getElementById("autoMode").value;
+  const detectSendButton = document.getElementById("detectSendButton").checked;
   const delaySeconds = Math.max(1, Number(document.getElementById("delaySeconds").value) || 10);
+  const quiescenceSeconds = Math.max(0.5, Number(document.getElementById("quiescenceSeconds").value) || 2.5);
   const notificationsEnabled = document.getElementById("notificationsEnabled").checked;
   const filterSyncEnabled = document.getElementById("filterSyncEnabled").checked;
   const filterSyncFilename =
@@ -380,7 +460,10 @@ function readForm() {
     appPassword,
     remoteFolder,
     autoEnabled,
+    autoMode,
+    detectSendButton,
     delaySeconds,
+    quiescenceSeconds,
     notificationsEnabled,
     filterSyncEnabled,
     filterSyncFilename,
@@ -404,7 +487,10 @@ async function save() {
       },
       autoExport: {
         enabled: form.autoEnabled,
-        delaySeconds: form.delaySeconds
+        mode: form.autoMode,
+        detectSendButton: form.detectSendButton,
+        delaySeconds: form.delaySeconds,
+        quiescenceSeconds: form.quiescenceSeconds
       },
       notifications: {
         enabled: form.notificationsEnabled
@@ -701,7 +787,7 @@ function setupProfilesListInteractions() {
       validateHostnameInput(e.target, card.querySelector(".regex-status"));
     }
 
-    if (e.target.classList.contains("field-delay")) {
+    if (e.target.classList.contains("field-delay") || e.target.classList.contains("field-quiescence")) {
       updateDelayBadge(card);
     }
 
@@ -714,11 +800,15 @@ function setupProfilesListInteractions() {
     const card = e.target.closest(".profile-card");
     if (!card) return;
 
+    if (e.target.classList.contains("field-mode-override")) {
+      updateModeBadge(card);
+    }
+
     if (e.target.classList.contains("field-delay-toggle")) {
       const delayWrap = card.querySelector(".delay-input-wrap");
       const delayHint = card.querySelector(".delay-inherited-hint");
       if (e.target.checked) {
-        if (delayWrap) delayWrap.style.display = "";
+        if (delayWrap) delayWrap.style.display = "flex";
         if (delayHint) delayHint.style.display = "none";
       } else {
         if (delayWrap) delayWrap.style.display = "none";
@@ -726,21 +816,47 @@ function setupProfilesListInteractions() {
       }
       updateDelayBadge(card);
     }
+
+    if (e.target.classList.contains("field-delay") || e.target.classList.contains("field-quiescence")) {
+      updateDelayBadge(card);
+    }
   });
+}
+
+function updateModeBadge(card) {
+  const modeSelect = card.querySelector(".field-mode-override");
+  const badge = card.querySelector(".header-mode-badge");
+  if (!badge) return;
+
+  const mode = modeSelect ? modeSelect.value : "";
+  if (mode === "smart") {
+    badge.textContent = "Smart";
+    badge.className = "badge badge-primary header-mode-badge";
+    badge.style.display = "";
+  } else if (mode === "delay") {
+    badge.textContent = "Delay";
+    badge.className = "badge badge-amber header-mode-badge";
+    badge.style.display = "";
+  } else {
+    badge.style.display = "none";
+  }
 }
 
 function updateDelayBadge(card) {
   const toggle = card.querySelector(".field-delay-toggle");
-  const input = card.querySelector(".field-delay");
+  const delayInput = card.querySelector(".field-delay");
+  const quiescenceInput = card.querySelector(".field-quiescence");
   const badge = card.querySelector(".header-delay-badge");
   if (!badge) return;
 
   if (toggle && toggle.checked) {
-    const secs = Number(input?.value) || 10;
-    badge.textContent = `${secs}s delay`;
+    const parts = [];
+    if (delayInput && delayInput.value !== "") parts.push(`${Number(delayInput.value) || 10}s delay`);
+    if (quiescenceInput && quiescenceInput.value !== "") parts.push(`${Number(quiescenceInput.value) || 2.5}s settle`);
+    badge.textContent = parts.length ? parts.join(", ") : "Custom timings";
     badge.className = "badge badge-primary header-delay-badge";
   } else {
-    badge.textContent = "Global delay";
+    badge.textContent = "Global timings";
     badge.className = "badge badge-subtle header-delay-badge";
   }
 }
@@ -800,7 +916,12 @@ function addNewProfile() {
   const newProfile = {
     id: `site-${newIdx}`,
     hostnamePattern: "example\\.com",
+    mode: null,
+    detectSendButton: null,
     delaySeconds: null,
+    quiescenceSeconds: null,
+    submitButtonSelector: "",
+    stopButtonSelector: "",
     containerSelector: "",
     excludeSelectors: ["nav", "header", "footer", "button", "form"],
     userMessageSelector: "",
@@ -1120,6 +1241,13 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("reset").addEventListener("click", resetProfiles);
   document.getElementById("testConnection").addEventListener("click", testConnection);
   document.getElementById("syncNow").addEventListener("click", syncNow);
+
+  // Auto-export mode change
+  document.getElementById("autoMode").addEventListener("change", (e) => {
+    const isSmart = e.target.value === "smart";
+    const smartWrap = document.getElementById("smartSettingWrap");
+    if (smartWrap) smartWrap.style.display = isSmart ? "" : "none";
+  });
 
   // Profile Toolbar actions
   document.getElementById("addProfileBtn").addEventListener("click", addNewProfile);

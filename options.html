@@ -49,11 +49,44 @@
       <div>
         <label class="toggle-label">
           <input type="checkbox" id="autoEnabled" />
-          <span>Enable automatic export after sending a prompt (Enter key)</span>
+          <span>Enable automatic export after sending a prompt</span>
         </label>
-        <div class="sub-setting">
-          <label for="delaySeconds">Default delay after pressing Enter (seconds)</label>
-          <input type="number" id="delaySeconds" min="1" max="120" style="width: 110px;" />
+        <div class="sub-setting" style="margin-top: 10px;">
+          <div class="row" style="align-items: flex-start; gap: 16px; flex-wrap: wrap;">
+            <div style="flex: 2; min-width: 220px;">
+              <label for="autoMode">Detection Mode</label>
+              <select id="autoMode" style="width: 100%;">
+                <option value="smart">Smart (Auto-detect response completion)</option>
+                <option value="delay">Fixed delay (Wait set time)</option>
+              </select>
+              <small class="hint" style="margin-top: 4px; display: block;">
+                Smart mode observes DOM mutations and exports when the AI finishes streaming.
+              </small>
+            </div>
+            <div id="smartSettingWrap" style="flex: 1; min-width: 140px;">
+              <label for="quiescenceSeconds">Settling duration</label>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <input type="number" id="quiescenceSeconds" min="0.5" max="30" step="0.5" style="width: 80px;" />
+                <small>seconds</small>
+              </div>
+              <small class="hint" style="margin-top: 4px; display: block;">Silence before export</small>
+            </div>
+            <div id="delaySettingWrap" style="flex: 1; min-width: 140px;">
+              <label for="delaySeconds">Default / fallback delay</label>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <input type="number" id="delaySeconds" min="1" max="120" style="width: 80px;" />
+                <small>seconds</small>
+              </div>
+              <small class="hint" style="margin-top: 4px; display: block;">Fixed delay</small>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 14px;">
+          <label class="toggle-label">
+            <input type="checkbox" id="detectSendButton" />
+            <span>Detect Send / Submit button clicks in addition to Enter key</span>
+          </label>
         </div>
       </div>
 
@@ -156,6 +189,7 @@
           <span class="profile-order-badge" title="Evaluation order"></span>
           <span class="profile-name"></span>
           <span class="badge badge-code header-hostname-badge"></span>
+          <span class="badge header-mode-badge" style="display: none;"></span>
           <span class="badge header-delay-badge"></span>
           <span class="badge badge-subtle header-excludes-badge" style="display: none;"></span>
           <span class="badge badge-amber header-masks-badge" style="display: none;"></span>
@@ -181,16 +215,51 @@
           </div>
         </div>
 
-        <div class="delay-override-row">
-          <label class="checkbox-label" style="margin: 0;">
-            <input type="checkbox" class="field-delay-toggle" />
-            <span>Override global auto-export delay for this site</span>
-          </label>
-          <div class="delay-input-wrap" style="display: none;">
-            <input type="number" class="field-delay" min="1" max="120" style="width: 85px;" />
-            <small>seconds</small>
+        <div class="site-overrides-card" style="margin-top: 12px; padding: 12px 14px; background: var(--bg-subtle); border-radius: var(--radius-md); border: 1px solid var(--border);">
+          <div style="font-weight: 600; font-size: 13px; margin-bottom: 8px;">Site Overrides (Optional)</div>
+          <div class="row" style="gap: 14px; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 160px;">
+              <label style="font-size: 12px;">Detection Mode Override</label>
+              <select class="field-mode-override" style="width: 100%; font-size: 13px;">
+                <option value="">Inherit global mode</option>
+                <option value="smart">Smart (Auto-detect response)</option>
+                <option value="delay">Fixed delay</option>
+              </select>
+            </div>
+            <div style="flex: 1; min-width: 160px;">
+              <label style="font-size: 12px;">Send Button Clicks</label>
+              <select class="field-send-btn-override" style="width: 100%; font-size: 13px;">
+                <option value="">Inherit global setting</option>
+                <option value="true">Enabled (Enter + Button)</option>
+                <option value="false">Disabled (Enter key only)</option>
+              </select>
+            </div>
           </div>
-          <small class="delay-inherited-hint" style="color: var(--text-muted);">(Inherits global delay)</small>
+
+          <div class="delay-override-row" style="margin-top: 10px;">
+            <label class="checkbox-label" style="margin: 0;">
+              <input type="checkbox" class="field-delay-toggle" />
+              <span>Override timing (delay / settling silence) for this site</span>
+            </label>
+            <div class="delay-input-wrap" style="display: none; align-items: center; gap: 6px;">
+              <input type="number" class="field-delay" min="1" max="120" style="width: 80px;" placeholder="Delay" />
+              <small>sec delay</small>
+              <input type="number" class="field-quiescence" min="0.5" max="30" step="0.5" style="width: 80px; margin-left: 8px;" placeholder="Settle" />
+              <small>sec settle</small>
+            </div>
+            <small class="delay-inherited-hint" style="color: var(--text-muted);">(Inherits global timings)</small>
+          </div>
+        </div>
+
+        <div class="form-grid" style="margin-top: 12px;">
+          <div>
+            <label>Submit Button Selector <small>(optional CSS selector for custom send buttons)</small></label>
+            <input type="text" class="field-submit-btn-selector mono" placeholder="e.g. button[data-testid='send-button']" />
+          </div>
+          <div>
+            <label>Stop Button Selector <small>(optional CSS selector for stop generating button)</small></label>
+            <input type="text" class="field-stop-btn-selector mono" placeholder="e.g. button[aria-label='Stop']" />
+          </div>
         </div>
 
         <div class="form-grid" style="margin-top: 12px;">

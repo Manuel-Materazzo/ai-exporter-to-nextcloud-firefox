@@ -9,7 +9,10 @@ const DEFAULT_CONFIG = {
   },
   autoExport: {
     enabled: true,
-    delaySeconds: 10
+    mode: "smart",        // "smart" (DOM response detection) | "delay" (fixed timer)
+    detectSendButton: true, // detect clicks on send/submit buttons in addition to Enter key
+    delaySeconds: 10,     // delay in seconds when in "delay" mode or fallback
+    quiescenceSeconds: 2.5 // silence window in seconds to detect response completion
   },
   notifications: {
     enabled: true
@@ -24,7 +27,12 @@ const DEFAULT_CONFIG = {
     {
       id: "claude",
       hostnamePattern: "claude\\.ai",
+      mode: null,
+      detectSendButton: null,
       delaySeconds: 20,
+      quiescenceSeconds: null,
+      submitButtonSelector: "",
+      stopButtonSelector: "",
       containerSelector: "",
       excludeSelectors: ["nav", "header", "footer", "button", "form"],
       userMessageSelector: "",
@@ -35,7 +43,12 @@ const DEFAULT_CONFIG = {
     {
       id: "gemini",
       hostnamePattern: "gemini\\.google\\.com",
+      mode: null,
+      detectSendButton: null,
       delaySeconds: null,
+      quiescenceSeconds: null,
+      submitButtonSelector: "",
+      stopButtonSelector: "",
       containerSelector: "",
       excludeSelectors: ["nav", "header", "footer", "button", "form"],
       userMessageSelector: "",
@@ -46,7 +59,12 @@ const DEFAULT_CONFIG = {
     {
       id: "chatgpt",
       hostnamePattern: "chatgpt\\.com",
+      mode: null,
+      detectSendButton: null,
       delaySeconds: null,
+      quiescenceSeconds: null,
+      submitButtonSelector: "",
+      stopButtonSelector: "",
       containerSelector: "",
       excludeSelectors: ["nav", "header", "footer", "button", "form"],
       userMessageSelector: "",
@@ -57,7 +75,12 @@ const DEFAULT_CONFIG = {
     {
       id: "perplexity",
       hostnamePattern: "(www\\.)?perplexity\\.ai",
+      mode: null,
+      detectSendButton: null,
       delaySeconds: 20,
+      quiescenceSeconds: null,
+      submitButtonSelector: "",
+      stopButtonSelector: "",
       containerSelector: "",
       excludeSelectors: ["nav", "header", "footer", "button", "form"],
       userMessageSelector: "",
@@ -68,7 +91,12 @@ const DEFAULT_CONFIG = {
     {
       id: "deepseek",
       hostnamePattern: "chat\\.deepseek\\.com",
+      mode: null,
+      detectSendButton: null,
       delaySeconds: null,
+      quiescenceSeconds: null,
+      submitButtonSelector: "",
+      stopButtonSelector: "",
       containerSelector: "",
       excludeSelectors: ["nav", "header", "footer", "button", "form"],
       userMessageSelector: "",
@@ -79,7 +107,12 @@ const DEFAULT_CONFIG = {
     {
       id: "qwen",
       hostnamePattern: "chat\\.qwen\\.ai",
+      mode: null,
+      detectSendButton: null,
       delaySeconds: null,
+      quiescenceSeconds: null,
+      submitButtonSelector: "",
+      stopButtonSelector: "",
       containerSelector: "",
       excludeSelectors: ["nav", "header", "footer", "button", "form"],
       userMessageSelector: "",
@@ -90,7 +123,12 @@ const DEFAULT_CONFIG = {
     {
       id: "kimi",
       hostnamePattern: "(www\\.)?kimi\\.com",
+      mode: null,
+      detectSendButton: null,
       delaySeconds: null,
+      quiescenceSeconds: null,
+      submitButtonSelector: "",
+      stopButtonSelector: "",
       containerSelector: "",
       excludeSelectors: ["nav", "header", "footer", "button", "form"],
       userMessageSelector: "",
@@ -101,7 +139,12 @@ const DEFAULT_CONFIG = {
     {
       id: "mistral",
       hostnamePattern: "chat\\.mistral\\.ai",
+      mode: null,
+      detectSendButton: null,
       delaySeconds: null,
+      quiescenceSeconds: null,
+      submitButtonSelector: "",
+      stopButtonSelector: "",
       containerSelector: "",
       excludeSelectors: ["nav", "header", "footer", "button", "form"],
       userMessageSelector: "",

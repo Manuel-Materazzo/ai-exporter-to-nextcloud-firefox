@@ -233,13 +233,6 @@ function applyMasking(markdown, maskRules) {
   return result;
 }
 
-let exportTimer = null;
-
-function scheduleExport(delaySeconds) {
-  if (exportTimer) clearTimeout(exportTimer);
-  exportTimer = setTimeout(() => runExport(false), (delaySeconds || 10) * 1000);
-}
-
 async function runExport(manual) {
   try {
     const config = await getConfig();
@@ -271,8 +264,254 @@ async function runExport(manual) {
   }
 }
 
-// Trigger on Enter in a textarea/input/contenteditable (i.e. a chat prompt box).
-// Capture phase, and we never call preventDefault, so normal chat behavior is untouched.
+function isSubmitButton(el, profile) {
+  if (!el) return false;
+  const btn = el.closest('button, [role="button"], input[type="submit"]');
+  if (!btn) return false;
+
+  // 1. Profile custom selector if defined
+  if (profile && profile.submitButtonSelector) {
+    try {
+      if (btn.matches(profile.submitButtonSelector)) return true;
+    } catch (e) {}
+  }
+
+  // 2. HTML standard type="submit"
+  if (btn.type === "submit") return true;
+
+  // 3. Aria-label, title, or test-id checks (covering "Send message", "Send prompt", "Submit", etc.)
+  const ariaLabel = (btn.getAttribute("aria-label") || "").trim();
+  const title = (btn.getAttribute("title") || "").trim();
+  const testId = (btn.getAttribute("data-testid") || btn.getAttribute("data-qa") || "").trim();
+  const btnText = (btn.innerText || btn.textContent || "").trim();
+
+  const sendExactRegex = /^(send(\s+(message|prompt|query|chat))?|submit|ask|generate)$/i;
+  if (sendExactRegex.test(ariaLabel) || sendExactRegex.test(title)) return true;
+
+  const sendBroadRegex = /\b(send\s*(message|prompt|query|chat)?|submit)\b/i;
+  if (sendBroadRegex.test(ariaLabel) || sendBroadRegex.test(title) || sendBroadRegex.test(testId)) return true;
+
+  if (btnText && btnText.length < 20 && sendExactRegex.test(btnText)) return true;
+
+  // 4. Proximity & icon heuristic: button inside prompt container with text in editable field
+  const promptContainer = btn.closest('form, [class*="prompt" i], [class*="input" i], [class*="chat-input" i]');
+  if (promptContainer) {
+    const editable = promptContainer.querySelector('textarea, [contenteditable="true"], input[type="text"]');
+    if (editable) {
+      const val = (editable.value || editable.innerText || editable.textContent || "").trim();
+      if (val.length > 0 && (btn.querySelector("svg") || btn.tagName === "BUTTON")) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function findStopButton(profile) {
+  if (profile && profile.stopButtonSelector) {
+    try {
+      const el = document.querySelector(profile.stopButtonSelector);
+      if (el) return el;
+    } catch (e) {}
+  }
+  const selectors = [
+    'button[aria-label*="stop" i]',
+    'button[title*="stop" i]',
+    'button[data-testid*="stop" i]',
+    '[aria-label="Stop generating"]',
+    '[aria-label="Stop response"]',
+    '[aria-label="Stop streaming"]',
+    'button[aria-label*="cancel" i]'
+  ];
+  for (const sel of selectors) {
+    try {
+      const el = document.querySelector(sel);
+      if (el && el.offsetParent !== null) return el;
+    } catch (e) {}
+  }
+  return null;
+}
+
+let exportTimer = null;
+let activeTracker = null;
+
+function cancelActiveTracker() {
+  if (activeTracker) {
+    activeTracker.abort();
+    activeTracker = null;
+  }
+}
+
+function scheduleExport(delaySeconds) {
+  cancelActiveTracker();
+  if (exportTimer) clearTimeout(exportTimer);
+  exportTimer = setTimeout(() => runExport(false), (delaySeconds || 10) * 1000);
+}
+
+class SmartResponseTracker {
+  constructor(profile, quiescenceSeconds) {
+    this.profile = profile;
+    this.quiescenceMs = Math.max(500, (Number(quiescenceSeconds) || 2.5) * 1000);
+    this.state = "waiting"; // "waiting" | "streaming" | "settling" | "done"
+    this.quiescenceTimer = null;
+    this.initialWaitTimer = null;
+    this.maxTotalTimer = null;
+    this.observer = null;
+    this.sawStopButton = false;
+
+    this.root =
+      (profile && profile.containerSelector && document.querySelector(profile.containerSelector)) ||
+      document.body;
+
+    this.prevTextLength = (this.root.innerText || this.root.textContent || "").length;
+    this.prevBlockCount = this.root.querySelectorAll(BLOCK_SELECTOR).length;
+
+    this.start();
+  }
+
+  start() {
+    // Initial wait timeout: if no response begins in 45s, stop watching
+    this.initialWaitTimer = setTimeout(() => {
+      if (this.state === "waiting") {
+        console.debug("[AI Exporter] smart tracker: initial wait timeout (no response detected)");
+        this.abort();
+      }
+    }, 45000);
+
+    // Max total timeout safety net: max 5 minutes
+    this.maxTotalTimer = setTimeout(() => {
+      console.warn("[AI Exporter] smart tracker: max total duration reached, running export");
+      this.finish();
+    }, 300000);
+
+    this.observer = new MutationObserver(() => this.onMutation());
+    try {
+      this.observer.observe(this.root, {
+        childList: true,
+        subtree: true,
+        characterData: true
+      });
+    } catch (e) {
+      console.warn("[AI Exporter] could not observe root element", e);
+      this.abort();
+      scheduleExport(10);
+      return;
+    }
+
+    this.onMutation();
+  }
+
+  onMutation() {
+    if (this.state === "done") return;
+
+    const currTextLength = (this.root.innerText || this.root.textContent || "").length;
+    const currBlockCount = this.root.querySelectorAll(BLOCK_SELECTOR).length;
+    const stopBtn = findStopButton(this.profile);
+
+    if (stopBtn) {
+      this.sawStopButton = true;
+    }
+
+    const textGrew = currTextLength > this.prevTextLength + 3;
+    const blocksGrew = currBlockCount > this.prevBlockCount;
+
+    if (this.state === "waiting") {
+      if (textGrew || blocksGrew || stopBtn) {
+        this.state = "streaming";
+        if (this.initialWaitTimer) {
+          clearTimeout(this.initialWaitTimer);
+          this.initialWaitTimer = null;
+        }
+        this.prevTextLength = currTextLength;
+        this.prevBlockCount = currBlockCount;
+        this.resetQuiescenceTimer();
+      }
+      return;
+    }
+
+    if (this.state === "streaming" || this.state === "settling") {
+      if (textGrew || blocksGrew) {
+        this.state = "streaming";
+        this.prevTextLength = currTextLength;
+        this.prevBlockCount = currBlockCount;
+        this.resetQuiescenceTimer();
+      } else if (this.sawStopButton && !stopBtn) {
+        if (this.state !== "settling") {
+          this.state = "settling";
+          if (this.quiescenceTimer) clearTimeout(this.quiescenceTimer);
+          this.quiescenceTimer = setTimeout(() => this.finish(), 600);
+        }
+      }
+    }
+  }
+
+  resetQuiescenceTimer() {
+    if (this.quiescenceTimer) clearTimeout(this.quiescenceTimer);
+    this.quiescenceTimer = setTimeout(() => {
+      const stopBtn = findStopButton(this.profile);
+      if (stopBtn) {
+        this.quiescenceTimer = setTimeout(() => this.resetQuiescenceTimer(), 1000);
+        return;
+      }
+      this.finish();
+    }, this.quiescenceMs);
+  }
+
+  finish() {
+    this.abort();
+    runExport(false);
+  }
+
+  abort() {
+    this.state = "done";
+    if (this.quiescenceTimer) {
+      clearTimeout(this.quiescenceTimer);
+      this.quiescenceTimer = null;
+    }
+    if (this.initialWaitTimer) {
+      clearTimeout(this.initialWaitTimer);
+      this.initialWaitTimer = null;
+    }
+    if (this.maxTotalTimer) {
+      clearTimeout(this.maxTotalTimer);
+      this.maxTotalTimer = null;
+    }
+    if (this.observer) {
+      this.observer.disconnect();
+      this.observer = null;
+    }
+  }
+}
+
+function startSmartResponseTracker(profile, quiescenceSeconds) {
+  if (exportTimer) {
+    clearTimeout(exportTimer);
+    exportTimer = null;
+  }
+  cancelActiveTracker();
+  activeTracker = new SmartResponseTracker(profile, quiescenceSeconds);
+}
+
+function triggerAutoExport(config, profile, source) {
+  const mode = (profile && profile.mode) ? profile.mode : (config.autoExport.mode || "smart");
+
+  if (mode === "delay") {
+    const delay =
+      profile && profile.delaySeconds != null && Number(profile.delaySeconds) > 0
+        ? Number(profile.delaySeconds)
+        : config.autoExport.delaySeconds;
+    scheduleExport(delay);
+  } else {
+    const quiescence =
+      profile && profile.quiescenceSeconds != null && Number(profile.quiescenceSeconds) > 0
+        ? Number(profile.quiescenceSeconds)
+        : (config.autoExport.quiescenceSeconds || 2.5);
+    startSmartResponseTracker(profile, quiescence);
+  }
+}
+
+// Trigger on Enter in a textarea/input/contenteditable
 document.addEventListener(
   "keydown",
   (e) => {
@@ -283,13 +522,48 @@ document.addEventListener(
     if (!editable) return;
     getConfig().then((config) => {
       if (!config.autoExport.enabled) return;
-      // Resolve delay: profile-level overrides the global setting when explicitly set.
       const profile = matchProfile(config.profiles, location.hostname);
-      const delay =
-        (profile && profile.delaySeconds != null && Number(profile.delaySeconds) > 0)
-          ? Number(profile.delaySeconds)
-          : config.autoExport.delaySeconds;
-      scheduleExport(delay);
+      triggerAutoExport(config, profile, "enter");
+    });
+  },
+  true
+);
+
+// Trigger on clicks on Send / Submit buttons
+document.addEventListener(
+  "click",
+  (e) => {
+    getConfig().then((config) => {
+      if (!config.autoExport.enabled) return;
+      const profile = matchProfile(config.profiles, location.hostname);
+      const allowSendBtn =
+        profile && profile.detectSendButton != null
+          ? profile.detectSendButton
+          : config.autoExport.detectSendButton !== false;
+      if (!allowSendBtn) return;
+
+      if (isSubmitButton(e.target, profile)) {
+        triggerAutoExport(config, profile, "click");
+      }
+    });
+  },
+  true
+);
+
+// Trigger on form submission
+document.addEventListener(
+  "submit",
+  (e) => {
+    getConfig().then((config) => {
+      if (!config.autoExport.enabled) return;
+      const profile = matchProfile(config.profiles, location.hostname);
+      const allowSendBtn =
+        profile && profile.detectSendButton != null
+          ? profile.detectSendButton
+          : config.autoExport.detectSendButton !== false;
+      if (!allowSendBtn) return;
+
+      triggerAutoExport(config, profile, "submit");
     });
   },
   true

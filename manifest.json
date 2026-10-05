@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "AI Chat Exporter for Nextcloud",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Auto-exports AI chat conversations to Markdown files on your Nextcloud instance, with delimiter cropping, regex masking, and de-duplicated append-updates.",
   "icons": { "48": "icons/icon-48.png" },
   "permissions": [
